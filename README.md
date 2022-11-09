@@ -88,5 +88,5 @@ print(trace_full_lm.report.log_marginal_likelihood)
 
 We encourage other researchers (or anyone interested in this code from a methodology
 or application perspective) to submit an 
-[issue](https://github.com/tedinburgh/model-evidence-with-marginal/issues) on this =
+[issue](https://github.com/tedinburgh/model-evidence-with-marginal/issues) on this
 repository if they would like to report or fix any bugs or to contribute improvements.
