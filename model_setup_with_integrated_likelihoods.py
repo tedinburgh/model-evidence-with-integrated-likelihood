@@ -221,6 +221,83 @@ def logp_hierarchical_mm(
     return logp_
 
 
+def mu_hat_hierarchical_mm(
+        sigma2_y, sigma2_eta, sigma2_zeta, beta_mu, beta_Sigma_inv,
+        SxSxT_jk, SxSy_jk, SySy_jk, SxxT, Sxy, Syy, Sx_jk, Sy_jk, n_k, m_jk,
+        m_k, K):
+    frac_eta = [
+        [sigma2_eta / (sigma2_y + m_jk[kk][jj] * sigma2_eta)
+            for jj in range(n_k[kk])]
+        for kk in range(K)]
+    frac_eta_zeta = [
+        sigma2_zeta / (sigma2_y + sigma2_zeta * sum([
+            (sigma2_y * m_jk[kk][jj]) / (sigma2_y + sigma2_eta * m_jk[kk][jj])
+            for jj in range(n_k[kk])]))
+        for kk in range(K)]
+    frac_zeta = [
+        sigma2_zeta / (sigma2_y + m_k[kk] * sigma2_zeta) for kk in range(K)]
+    Sigma_hat_inv = beta_Sigma_inv + 1 / sigma2_y * SxxT
+    Sigma_hat_inv += -1 / sigma2_y * sum([sum([
+            frac_eta[kk][jj] * SxSxT_jk[kk][jj] for jj in range(n_k[kk])])
+        for kk in range(K)])
+    Sigma_hat_inv += -1 / sigma2_y * sum([(
+            frac_eta_zeta[kk] *
+            sum([sigma2_y / sigma2_eta * frac_eta[kk][jj] * Sx_jk[kk][jj]
+                for jj in range(n_k[kk])]) *
+            sum([sigma2_y / sigma2_eta * frac_eta[kk][jj] * Sx_jk[kk][jj]
+                for jj in range(n_k[kk])]).reshape(-1, 1))
+        for kk in range(K)])
+    Sigma_hat_inv_mu_hat = np.dot(beta_Sigma_inv, beta_mu) + 1 / sigma2_y * Sxy
+    Sigma_hat_inv_mu_hat += -1 / sigma2_y * sum([sum([
+            frac_eta[kk][jj] * SxSy_jk[kk][jj] for jj in range(n_k[kk])])
+        for kk in range(K)])
+    Sigma_hat_inv_mu_hat += -1 / sigma2_y * sum([(
+            frac_eta_zeta[kk] *
+            sum([sigma2_y / sigma2_eta * frac_eta[kk][jj] * Sx_jk[kk][jj]
+                for jj in range(n_k[kk])]) *
+            sum([sigma2_y / sigma2_eta * frac_eta[kk][jj] * Sy_jk[kk][jj]
+                for jj in range(n_k[kk])]))
+        for kk in range(K)])
+    mu_hat = np.dot(np.linalg.inv(Sigma_hat_inv), Sigma_hat_inv_mu_hat)
+    Sb_jk = [[(
+        Sy_jk[kk][jj] - np.dot(Sx_jk[kk][jj], mu_hat))
+        for jj in range(n_k[kk])]
+        for kk in range(K)]
+    eta_hat = [[
+        frac_eta[kk][jj] * Sb_jk[kk][jj] -
+        frac_eta_zeta[kk] * frac_eta[kk][jj] * m_jk[kk][jj] * sum([(
+                sigma2_y / sigma2_eta *
+                frac_eta[kk][ll] * Sb_jk[kk][ll])
+            for ll in range(n_k[kk])])
+        for jj in range(n_k[kk])]
+        for kk in range(K)]
+    # sigma2_eta_hat = [[
+    #     sigma2_y * frac_eta[kk][jj] + (
+    #         1 + frac_eta_zeta[kk] * frac_eta[kk][jj] * m_jk[kk][jj]**2)
+    #     for jj in range(n_k[kk])]
+    #     for kk in range(K)]
+    S_k = [
+        sigma2_y * np.diag(frac_eta[kk]) + frac_eta_zeta[kk] * np.dot(
+            np.array(
+                [sigma2_y * frac_eta[kk][jj] * m_jk[kk][jj]
+                    for jj in range(n_k[kk])]).reshape(-1, 1),
+            np.array(
+                [frac_eta[kk][jj] * m_jk[kk][jj]
+                    for jj in range(n_k[kk])]).reshape(1, -1))
+        for kk in range(K)]
+    sigma2_eta_hat = [list(np.diag(S_k[kk])) for kk in range(K)]
+    zeta_hat = [frac_zeta[kk] * (
+        sum(Sy_jk[kk]) - np.dot(sum(Sx_jk[kk]), mu_hat) -
+        sum([eta_hat[kk][jj] * m_jk[kk][jj] for jj in range(n_k[kk])]))
+        for kk in range(K)]
+    sigma2_zeta_hat = [sigma2_y * frac_zeta[kk] for kk in range(K)]
+    output = dict(
+        mu_tilde=mu_hat, Sigma_tilde_inv=Sigma_hat_inv,
+        eta_hat=eta_hat, sigma2_hat_eta=sigma2_eta_hat,
+        zeta_hat=zeta_hat, sigma2_hat_zeta=sigma2_zeta_hat)
+    return output
+
+
 def logp_general_mm(
         sigma2_y, Sigma_eta_inv, mu, Sigma_inv,
         SzzT_j, SzxT_j, Szy_j, SxxT, Sxy, Syy, n_j, J):

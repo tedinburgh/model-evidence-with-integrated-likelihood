@@ -636,7 +636,7 @@ def model_fits_and_plot():
                 ax[row, col].plot(
                     m5_data['x'][m5_data['j'] == j, 1],
                     m5_data['y'][m5_data['j'] == j],
-                    'o', ms=5)
+                    'o', ms=3)
                 ax[row, col].set_title(j)
                 ax[row, col].set_xticks(
                     [0, 1], ['Basement', 'Ground floor'], rotation=90)
@@ -660,6 +660,9 @@ def model_fits_and_plot():
                 ax[ii, 0].set_ylabel('Log radon level')
             plt.tight_layout()
             plt.subplots_adjust(wspace=0)
+            # tif_fig_name = inputs.table_output_file_path
+            # tif_fig_name += 'radon_m' + str(m) + '.tif'
+            # plt.savefig(tif_fig_name, format='tiff')
             pdf.savefig(fig)
             plt.close()
     return

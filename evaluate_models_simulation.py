@@ -16,7 +16,7 @@ import argparse
 import time
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import model_setup_with_integrated_likelihoods as msm
+import model_setup_with_integrated_likelihoods as ilike
 from scipy.spatial import distance
 from matplotlib.backends.backend_pdf import PdfPages
 from palettable.colorbrewer import sequential as sq
@@ -114,7 +114,10 @@ def simulate_x(
         z = np.ones((n, 1))
     if t is None:
         t = np.random.uniform(low=min, high=max, size=n)
-    order = np.argsort(t)
+    if len(t.shape) > 1:
+        order = np.argsort(t[:, 0])
+    else:
+        order = np.argsort(t)
     t = t[order].reshape(n, 1)
     j = j[order]
     for s in s_x:
@@ -122,8 +125,10 @@ def simulate_x(
     for s in s_z:
         constant = 0.5 * (max - min) * (max - min - s)**2
         z = np.hstack((z, (t - s) * (t > s) - constant))
-    x = np.hstack((x, np.hstack([np.cos(2*n*np.pi*t / P) for n in range(d2)])))
-    x = np.hstack((x, np.hstack([np.sin(2*n*np.pi*t / P) for n in range(d2)])))
+    x = np.hstack((
+        x, np.hstack([np.cos(2*(m + 1)*np.pi*t / P) for m in range(d2)])))
+    x = np.hstack((
+        x, np.hstack([np.sin(2*(m + 1)*np.pi*t / P) for m in range(d2)])))
     output = dict(x=x, j=j, z=z, t=t, d1=d1, d2=d2)
     return output
 
@@ -283,8 +288,8 @@ def sample_lm_model(
     # Marginal likelihood sampling
     start_time = time.time()
     with pm.Model() as smc_m:
-        logp_input_dict = msm.get_lm_integrated(smc_m, m_data, **prior_dict)
-        pm.Potential('y', msm.logp_lm(**logp_input_dict))
+        logp_input_dict = ilike.get_lm_integrated(smc_m, m_data, **prior_dict)
+        pm.Potential('y', ilike.logp_lm(**logp_input_dict))
         trace_integrated = pm.sample_smc(
             draws=n_draws, random_seed=random_seed, chains=n_chains)
         sampling_time['integrated'] = (time.time() - start_time)
@@ -296,7 +301,7 @@ def sample_lm_model(
     # Full likelihood sampling
     start_time = time.time()
     with pm.Model() as smc_m_full:
-        y, sigma2 = msm.get_lm_full(smc_m_full, m_data, **prior_dict)
+        y, sigma2 = ilike.get_lm_full(smc_m_full, m_data, **prior_dict)
         pm.Normal('y_obs', mu=y, tau=1/sigma2, observed=m_data['y'])
         trace_full = pm.sample_smc(
             draws=n_draws, random_seed=random_seed, chains=n_chains)
@@ -321,7 +326,7 @@ def sample_lm_ninvg_model(
         prior_dict['gamma'] = 1
     sampling_time = dict(integrated=np.nan, full=np.nan)
     # Marginal likelihood sampling
-    xy_dict = msm.xy_sums(**m_data)
+    xy_dict = ilike.xy_sums(**m_data)
     xy_dict['d'] = m_data['x'].shape[1]
     if 'beta_Sigma_inv' in prior_dict.keys():
         xy_dict['Sigma_inv'] = prior_dict['beta_Sigma_inv']
@@ -332,15 +337,15 @@ def sample_lm_ninvg_model(
     if 'sigma2_beta' in prior_dict.keys():
         xy_dict['sigma2_beta'] = prior_dict['sigma2_beta']
     xy_dict['gamma'] = prior_dict['gamma']
-    logp_ = msm.logp_evidence_ninvg_lm(**xy_dict)
+    logp_ = ilike.logp_evidence_ninvg_lm(**xy_dict)
     # Marginal likelihood sampling
     start_time = time.time()
     with pm.Model() as smc_m:
         prior_dict.pop('gamma', None)
-        logp_input_dict = msm.get_lm_integrated(smc_m, m_data, **prior_dict)
+        logp_input_dict = ilike.get_lm_integrated(smc_m, m_data, **prior_dict)
         prior_dict['gamma'] = xy_dict['gamma']
         logp_input_dict['gamma'] = prior_dict['gamma']
-        pm.Potential('y', msm.logp_ninvg_lm(**logp_input_dict))
+        pm.Potential('y', ilike.logp_ninvg_lm(**logp_input_dict))
         trace_integrated = pm.sample_smc(
             draws=n_draws, random_seed=random_seed, chains=n_chains)
         sampling_time['integrated'] = (time.time() - start_time)
@@ -352,7 +357,7 @@ def sample_lm_ninvg_model(
     # Full likelihood sampling
     start_time = time.time()
     with pm.Model() as smc_m_full:
-        y, sigma2 = msm.get_lm_ninvg_full(smc_m_full, m_data, **prior_dict)
+        y, sigma2 = ilike.get_lm_ninvg_full(smc_m_full, m_data, **prior_dict)
         pm.Normal('y_obs', mu=y, tau=1/sigma2, observed=m_data['y'])
         trace_full = pm.sample_smc(
             draws=n_draws, random_seed=random_seed, chains=n_chains)
@@ -378,8 +383,8 @@ def sample_mm_model(
     # Marginal likelihood sampling
     start_time = time.time()
     with pm.Model() as smc_m:
-        logp_input_dict = msm.get_mm_integrated(smc_m, m_data, **prior_dict)
-        pm.Potential('y', msm.logp_mm(**logp_input_dict))
+        logp_input_dict = ilike.get_mm_integrated(smc_m, m_data, **prior_dict)
+        pm.Potential('y', ilike.logp_mm(**logp_input_dict))
         trace_integrated = pm.sample_smc(
             draws=n_draws, random_seed=random_seed, chains=n_chains)
         sampling_time['integrated'] = (time.time() - start_time)
@@ -391,7 +396,7 @@ def sample_mm_model(
     # Full likelihood sampling
     start_time = time.time()
     with pm.Model() as smc_m_full:
-        y, sigma2 = msm.get_mm_full(smc_m_full, m_data, **prior_dict)
+        y, sigma2 = ilike.get_mm_full(smc_m_full, m_data, **prior_dict)
         pm.Normal('y_obs', mu=y, tau=1/sigma2, observed=m_data['y'])
         trace_full = pm.sample_smc(
             draws=n_draws, random_seed=random_seed, chains=n_chains)
@@ -417,9 +422,9 @@ def sample_general_mm_model(
     # Marginal likelihood sampling
     start_time = time.time()
     with pm.Model() as smc_m:
-        logp_input_dict = msm.get_general_mm_integrated(
+        logp_input_dict = ilike.get_general_mm_integrated(
             smc_m, m_data, **prior_dict)
-        pm.Potential('y', msm.logp_general_mm(**logp_input_dict))
+        pm.Potential('y', ilike.logp_general_mm(**logp_input_dict))
         trace_integrated = pm.sample_smc(
             draws=n_draws, random_seed=random_seed, chains=n_chains)
         sampling_time['integrated'] = (time.time() - start_time)
@@ -431,7 +436,7 @@ def sample_general_mm_model(
     # Full likelihood sampling
     start_time = time.time()
     with pm.Model() as smc_m_full:
-        y, sigma2 = msm.get_general_mm_full(
+        y, sigma2 = ilike.get_general_mm_full(
             smc_m_full, m_data, **prior_dict)
         pm.Normal('y_obs', mu=y, tau=1/sigma2, observed=m_data['y'])
         trace_full = pm.sample_smc(
@@ -447,12 +452,13 @@ def sample_general_mm_model(
 # Simulated dataset figure
 
 
-def plot_simulated_data(output_file_path, random_seed=286):
+def plot_simulated_data(
+        data_output_file_path, figure_output_file_path, random_seed=286):
     '''Generate Figure 1, showing all simulated datasets'''
-    data0 = pd.read_csv(output_file_path + 'd0.csv')
-    data1 = pd.read_csv(output_file_path + 'd1.csv')
-    data2 = pd.read_csv(output_file_path + 'd2.csv')
-    data3 = pd.read_csv(output_file_path + 'd3.csv')
+    data0 = pd.read_csv(data_output_file_path + 'data0.csv')
+    data1 = pd.read_csv(data_output_file_path + 'data1.csv')
+    data2 = pd.read_csv(data_output_file_path + 'data2.csv')
+    data3 = pd.read_csv(data_output_file_path + 'data3.csv')
 
     rowcols = [[0, 0], [0, 1], [1, 0], [1, 1]]
     data_list = [data0, data1, data2, data3]
@@ -471,7 +477,7 @@ def plot_simulated_data(output_file_path, random_seed=286):
     fit_j = [False, True, True, False]
     titles = [r'$D_0$', r'$D_1$', r'$D_2$', r'$D_3$']
 
-    with PdfPages(output_file_path + 'simulated_datasets.pdf') as pdf:
+    with PdfPages(figure_output_file_path + 'simulated_datasets.pdf') as pdf:
         fig, ax = plt.subplots(
             nrows=2, ncols=2, sharex=True, sharey=True, figsize=[8, 7])
 
@@ -505,6 +511,8 @@ def plot_simulated_data(output_file_path, random_seed=286):
 
         plt.tight_layout(rect=(0, 0, 0.9, 1))
         plt.subplots_adjust(wspace=0, hspace=0)
+        tif_fig_name = figure_output_file_path + 'simulated_datasets.tif'
+        plt.savefig(tif_fig_name, format='tiff')
         pdf.savefig(fig)
         plt.close()
     return
@@ -669,7 +677,7 @@ def main():
                 # The direct logp_ for the linear model with NIG prior
                 smc_lml['analytic_m3-d' + str(d)] = logp_
             # Marginal likelihood
-            lml = trace_integrated['sample_stats']['log_integrated_likelihood']
+            lml = trace_integrated['sample_stats']['log_marginal_likelihood']
             if trace_integrated['sample_stats']['chain'].size == 1:
                 lml = [
                     lml[:, ii].values[0][-1]
@@ -678,7 +686,7 @@ def main():
                 lml = lml[:, -1].values
             smc_lml['integrated_m' + str(m) + '-d' + str(d)] = lml
             # Full likelihood
-            lml = trace_full['sample_stats']['log_integrated_likelihood']
+            lml = trace_full['sample_stats']['log_marginal_likelihood']
             if trace_full['sample_stats']['chain'].size == 1:
                 lml = [
                     lml[:, ii].values[0][-1]
@@ -749,10 +757,11 @@ def main():
         mdist_df['m'] = np.repeat(model_list, len(data_list))
         mdist_df['d'] = np.tile(data_list, len(model_list))
 
-        xy_fun_list = [msm.xy_sums, msm.xy_j_sums, msm.xyz_j_sums, msm.xy_sums]
+        xy_fun_list = [ilike.xy_sums, ilike.xy_j_sums, ilike.xyz_j_sums]
+        xy_fun_list += [ilike.xy_sums]
         xy_fun_list = [xy_fun_list[m] for m in model_list]
-        mu_fun_list = [msm.mu_tilde_lm, msm.mu_hat_mm, msm.mu_hat_general_mm]
-        mu_fun_list = [msm.mu_tilde_ninvg_lm]
+        mu_fun_list = [ilike.mu_tilde_lm, ilike.mu_hat_mm]
+        mu_fun_list += [ilike.mu_hat_general_mm, ilike.mu_tilde_ninvg_lm]
         mu_fun_list = [mu_fun_list[m] for m in model_list]
 
         d_param = data_params['coef'].str.startswith('b').sum()
@@ -844,7 +853,8 @@ def main():
 
     # Figure
     if inputs.generate_figures:
-        plot_simulated_data(inputs.table_output_file_path)
+        plot_simulated_data(
+            inputs.data_output_file_path, inputs.table_output_file_path)
     return
 
 
